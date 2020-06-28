@@ -21,6 +21,8 @@ var newAliveUserInfoSchema = new Schema(
             default: Date.now(),
         },
         is_warning_pushed: Boolean,
+        command: String,
+        pwd: String,
     },
     {
         // 이름 지정

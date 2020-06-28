@@ -18,6 +18,12 @@ var moment = require("moment");
 var request = require("request");
 var logger = require("./logger");
 var router = express.Router();
+var dotenv = require("dotenv");
+var path = require("path");
+dotenv.config({ path: path.join(__dirname, "../.env") });
+
+const DB_ADMIN = process.env.DB_ADMIN;
+const DB_PASSWORD = process.env.DB_PASSWORD;
 
 const SERVER_API_KEY =
     "AAAAJ2I8RAY:APA91bEyMgJMcegPqB7pWQyeQvY_hMvD5TpJGAu6QIypa6S3Lzmd2NeFFucG_fNuifbOe_5dg3ao921ljJFFq1-NVmr3dGC8TwylfZVNFgqCA48w2-GrBaIg76dYStc9PaRnfcHZZe_1";
@@ -36,13 +42,20 @@ db.once("open", () => {
     logger.onSendingMsgInfo("Connected to mongod Server");
 });
 // mongodb 연결
-var url = "mongodb://localhost:27017/user_info";
+var url = `mongodb://localhost:27017/user_info`;
 mongoose.connect(url, {
+    auth: {
+        user: DB_ADMIN,
+        password: DB_PASSWORD,
+    },
+    authSource: "admin",
     useNewUrlParser: true,
+    useUnifiedTopology: true,
 });
 // 내부 라이브러리 모델 파일 호출
 var RegisteredUserInfo = require("../lib/model/registered-user-info");
 var AliveUserInfo = require("../lib/model/alive-user-info");
+const { json } = require("express");
 mongoose.set("useFindAndModify", false);
 
 /* function
@@ -94,13 +107,13 @@ router.post("/", (req, res, next) => {
     /* 접속 정보 */
     const IP = getUserIP(req);
 
-    /* local ip가 아니면 모두 접속을 차단한다. */
-    if (!IP === "127.0.0.1") {
-        logger.onSendingMsgError("Blocked Connection" + ip);
+    // 내부 아이피 아님 상종 안함.
+    if (IP !== "127.0.0.1") {
         res.json({
-            psnum: 200,
-            msg: "Access Denied",
+            type: "error",
+            msg: "access denied",
         });
+        res.end();
         return;
     }
 
@@ -113,7 +126,7 @@ router.post("/", (req, res, next) => {
         jsonObj = JSON.parse(JSON.stringify(inputItem));
     } else {
         res.json({
-            psnum: 200,
+            code: 200,
             msg: "Not JSON",
         });
         return;
@@ -125,7 +138,7 @@ router.post("/", (req, res, next) => {
     if (!check_properties(["type"], jsonObj)) {
         logger.onSendingMsgError("Cannot find Type");
         res.json({
-            psnum: 200,
+            code: 200,
             msg: "Cannot Find Type",
         });
         return;
@@ -146,7 +159,7 @@ router.post("/", (req, res, next) => {
             ) {
                 logger.onSendingMsgError("Wrong Properties");
                 res.json({
-                    psnum: 200,
+                    code: 200,
                     msg: "Wrong properties",
                 });
                 return;
@@ -164,13 +177,13 @@ router.post("/", (req, res, next) => {
                     logger.onSendingMsgInfo("NEW : New User Data saved");
                     // 결과 반환
                     res.json({
-                        psnum: 100,
+                        code: 100,
                         msg: "database-server",
                     });
                 } else {
                     logger.onSendingMsgError("NEW : Failed to Save User Data");
                     res.json({
-                        psnum: 200,
+                        code: 200,
                         msg: "Failed to Save User Data",
                     });
                 }
@@ -182,7 +195,7 @@ router.post("/", (req, res, next) => {
             // 유효 타입 검사
             if (!check_properties(["id"], jsonObj)) {
                 res.json({
-                    psnum: 200,
+                    code: 200,
                     msg: "Wrong Properties",
                 });
                 return;
@@ -203,11 +216,17 @@ router.post("/", (req, res, next) => {
                     // 에러가 없고 , res가 null이 아니면 성공json을 response합니다.
                     if (!err && body !== null) {
                         logger.onSendingMsgInfo(
-                            "ALIVE : ID data already exist. Change time only"
+                            "ALIVE : ID data already exists. The time has been changed"
                         );
+                        // res.json({
+                        //     psnum : 100,
+                        //     msg : "ok",
+                        // })
                         res.json({
-                            psnum: 100,
-                            msg: "database-server",
+                            code: 100,
+                            user_id: body.user_id,
+                            command: body.command,
+                            pwd: body.pwd,
                         });
                     } else if (body === null) {
                         // 만약 해당하는 조건이 검색되지 않는다면 is_warning_pushed이
@@ -274,9 +293,16 @@ router.post("/", (req, res, next) => {
                                         }
                                     });
 
+                                    // res.json({
+                                    //     psnum: 100,
+                                    //     msg: "database-server",
+                                    // });
+
                                     res.json({
-                                        psnum: 100,
-                                        msg: "database-server",
+                                        code: 100,
+                                        user_id: notice.user_id,
+                                        command: notice.command,
+                                        pwd: notice.pwd,
                                     });
 
                                     // 아닐시 RegisteredUserInfo에서 token값이 존재하는 지 확인합니다.
@@ -306,6 +332,8 @@ router.post("/", (req, res, next) => {
                                                             ],
                                                         renewal_time: Date.now(),
                                                         is_warning_pushed: false,
+                                                        command: "",
+                                                        pwd: "",
                                                     }
                                                 );
                                                 insertDbData.save(
@@ -319,10 +347,19 @@ router.post("/", (req, res, next) => {
                                                             logger.onSendingMsgInfo(
                                                                 "ALIVE : AliveUserInfo User Data saved"
                                                             );
+                                                            // res.json({
+                                                            //     psnum: 100,
+                                                            //     msg:
+                                                            //         "database-server",
+                                                            // });
+
                                                             res.json({
-                                                                psnum: 100,
-                                                                msg:
-                                                                    "database-server",
+                                                                code: 100,
+                                                                user_id:
+                                                                    data.user_id,
+                                                                command:
+                                                                    data.command,
+                                                                pwd: data.pwd,
                                                             });
                                                         }
                                                     }
@@ -333,7 +370,7 @@ router.post("/", (req, res, next) => {
                                                     "ALIVE : No Token depends on this ID"
                                                 );
                                                 res.json({
-                                                    psnum: 200,
+                                                    code: 200,
                                                     msg: "Failed to Save",
                                                 });
                                             }
@@ -353,57 +390,165 @@ router.post("/", (req, res, next) => {
             // 유효 타입 검사
             if (!check_properties(["id"], jsonObj)) {
                 res.json({
+                    code: 200,
+                    msg: "Wrong Properties",
+                });
+                return;
+            }
+
+            AliveUserInfo.findOneAndDelete(
+                {
+                    user_id: jsonObj["id"],
+                },
+                (err, doc) => {
+                    if (err) {
+                        logger.onSendingMsgError(
+                            "ALIVE_STOP_FROM_ALIVE_LIST : " + err
+                        );
+                        res.status(400).json({
+                            code: 200,
+                            msg: "Id data has already deleted.",
+                        });
+                    } else if (doc != null) {
+                        logger.onSendingMsgInfo(
+                            "ALIVE_STOP_FROM_ALIVE_LIST : Deleted successfully"
+                        );
+                        // res.json({
+                        //     psnum: 100,
+                        //     msg: "database-server",
+                        // });
+
+                        // DELETE가 DB에 이미 적용되어 삭제되어 있으면
+                        // 각 property가 존재치 않아 Error가 발생하기 때문
+                        res.json({
+                            code: 100,
+                            user_id: doc.user_id,
+                            command: doc.command,
+                        });
+                    } else {
+                        logger.onSendingMsgInfo("There is no data");
+                        res.json({
+                            code: 200,
+                            msg: "already deleted",
+                        });
+                    }
+
+                    res.end();
+                }
+            );
+            break;
+
+        //////////////////
+        // 추가된 내용 /////
+        //////////////////
+
+        case "mb_lock_with_pwd":
+            // 유효 타입 검사
+            if (!check_properties(["id", "pwd"], jsonObj)) {
+                res.json({
+                    code: 200,
+                    msg: "Wrong Properties",
+                });
+                return;
+            }
+            // id를 기반으로 Document검색
+            // Document내에 command에 명령어 삽입
+            AliveUserInfo.findOneAndUpdate(
+                { user_id: jsonObj["id"] },
+                {
+                    command: "MobileLockOn",
+                    pwd: jsonObj["pwd"],
+                },
+                (err, data) => {
+                    if (err) {
+                        logger.onSendingMsgError(err);
+                    } else {
+                        res.json({
+                            psnum: 100,
+                            msg: "database-server",
+                        });
+                    }
+                }
+            );
+            break;
+
+        case "mb_lock_off":
+            // 유효 타입 검사
+            if (!check_properties(["id"], jsonObj)) {
+                res.json({
                     psnum: 200,
                     msg: "Wrong Properties",
                 });
                 return;
             }
-            // 쿼리문으로 검색을 시도한다. 결과는 콜백으로 받는다.
-            AliveUserInfo.find(
-                {
-                    user_id: jsonObj["id"],
-                },
-                (err, notice) => {
+            // 동일
+            AliveUserInfo.findOneAndUpdate(
+                { user_id: jsonObj["id"] },
+                { command: "MobileLockOff" },
+                (err, data) => {
                     if (err) {
-                        res.send(err);
+                        logger.onSendingMsgError(err);
                     } else {
-                        // length가 0이라면, 데이터가 현재 존재하지 않는 것이다.
-                        // 이 경우 잘못된 접근으로 response한다.
-                        if (notice.length == 0) {
-                            logger.onSendingMsgError(
-                                "ALIVE_STOP : No data exists"
-                            );
-                            // 데이터가 이미 존재하는 경우이다. 이 경우, 해당 데이터를 삭제한다.
-                        } else {
-                            AliveUserInfo.findOneAndDelete(
-                                {
-                                    user_id: jsonObj["id"],
-                                },
-                                (err, doc) => {
-                                    if (err) {
-                                        logger.onSendingMsgError(
-                                            "ALIVE_STOP_FROM_ALIVE_LIST : " +
-                                                err
-                                        );
-                                    } else {
-                                        logger.onSendingMsgInfo(
-                                            "ALIVE_STOP_FROM_ALIVE_LIST : Deleted successfully"
-                                        );
-                                    }
-                                }
-                            );
-                        }
+                        res.json({
+                            psnum: 100,
+                            msg: "database-server",
+                        });
                     }
                 }
             );
-
-            // 결과 반환
-            res.json({
-                psnum: 100,
-                msg: "database-server",
-            });
             break;
 
+        case "mb_camera":
+            // 유효 타입 검사
+            if (!check_properties(["id"], jsonObj)) {
+                res.json({
+                    psnum: 200,
+                    msg: "Wrong Properties",
+                });
+                return;
+            }
+            // camera 명령어로 저장
+            AliveUserInfo.findOneAndUpdate(
+                { user_id: jsonObj["id"] },
+                { command: "MobileCamera" },
+                (err, data) => {
+                    if (err) {
+                        logger.onSendingMsgError(err);
+                    } else {
+                        res.json({
+                            psnum: 100,
+                            msg: "database-server",
+                        });
+                    }
+                }
+            );
+            break;
+
+        case "mb_delete":
+            // 유효 타입 검사
+            if (!check_properties(["id"], jsonObj)) {
+                res.json({
+                    psnum: 200,
+                    msg: "Wrong Properties",
+                });
+                return;
+            }
+            // command의 value를 없애버린다.
+            AliveUserInfo.findOneAndUpdate(
+                { user_id: jsonObj["id"] },
+                { command: "", pwd: "" },
+                (err, data) => {
+                    if (err) {
+                        logger.onSendingMsgError(err);
+                    } else {
+                        res.json({
+                            psnum: 100,
+                            msg: "database-server",
+                        });
+                    }
+                }
+            );
+            break;
         ////////////////Query Server Processings////////////////
 
         // Query서버에서의 lostUser를 찾고 그에 대한 토큰값을 넘겨줍니다.

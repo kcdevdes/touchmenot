@@ -64,6 +64,45 @@ function makeRandomId(length) {
     return result;
 }
 
+function generateJSONResponse(type, id, command, pwd) {
+    let JSONObject = new Object();
+    let responseJSON = new Array();
+    if (type !== null) {
+        JSONObject.type = type;
+    }
+    if (id !== null) {
+        JSONObject.id = id;
+    }
+    if (!(command === null || command === "")) {
+        JSONObject.command = command;
+    }
+    if (!(pwd === null || pwd === "")) {
+        JSONObject.pwd = pwd;
+    }
+
+    responseJSON.push(JSONObject);
+
+    return JSONObject;
+}
+
+function base64encode(plaintext) {
+    return Buffer.from(plaintext, "utf8").toString("base64");
+}
+
+function deleteDBCommand(id) {
+    var options = {
+        url: "http://localhost:14000",
+        method: "POST",
+        json: {
+            type: "mb_delete",
+            id: id,
+        },
+    };
+    request(options, (err, res) => {
+        if (err) logger.onSendingMsgError("delete error");
+    });
+}
+
 /* function
 ip를 가지고 옵니다.
 */
@@ -76,9 +115,31 @@ function getUserIP(req) {
     return ipAddress.substr(7, ipAddress.length - 1);
 }
 
-/*
-  POST JSON processing
-*/
+router.get("/", (req, res) => {
+    var IP = getUserIP(req);
+    var option = {
+        url: "http://ip-api.com/json/" + IP,
+        method: "GET",
+    };
+    request(option, (err, response) => {
+        if (err) {
+            res.json({
+                ip: IP,
+            });
+        } else {
+            res.json({
+                ip: IP,
+                location: response.country,
+                region: response.regionName,
+                city: response.city,
+                isp: response.isp,
+                as: response.as,
+                msg: ["Unexpected access has been detected"],
+            });
+        }
+    });
+});
+
 router.post("/", (req, res, next) => {
     /* 접속 정보 */
     const IP = getUserIP(req);
@@ -150,13 +211,17 @@ router.post("/", (req, res, next) => {
             // json 형태로 반환합니다. json 형태는 docs를 참고하세요.
             request(options, (error, response, body) => {
                 // statusCode는 https requestCode입니다. 200은 OK 사인입니다
-                if (!error && response.statusCode == 200 && body.psnum == 100) {
+                if (!error && response.statusCode == 200 && body.code == 100) {
                     logger.onSendingMsgInfo("Issued New ID - " + userID);
                     // 완료 되었을 때 반환 json입니다.
-                    res.json({
-                        type: "user_id",
-                        id: userID,
-                    });
+                    // res.json({
+                    //     type: "user_id",
+                    //     id: userID,
+                    // });
+
+                    res.json(
+                        generateJSONResponse("user_id", userID, null, null)
+                    );
                 } else {
                     // 에러 발생 시 결과 반환입니다.
                     logger.onSendingMsgError("Cannot Save User Data");
@@ -191,11 +256,22 @@ router.post("/", (req, res, next) => {
 
             // request 결과를 반환하여 json형태로 response 합니다.
             request(options, (_err, _res, _body) => {
-                if (!_err && _res.statusCode === 200 && _body.psnum === 100) {
+                if (!_err && _res.statusCode === 200 && _body.code === 100) {
                     logger.onSendingMsgInfo("Res Alive OK Msg");
-                    res.json({
-                        type: "alive_ok",
-                    });
+                    // res.json({
+                    //     type: "alive_ok",
+                    // });
+
+                    deleteDBCommand(_body.user_id);
+
+                    res.json(
+                        generateJSONResponse(
+                            "alive_ok",
+                            null,
+                            _body.command,
+                            _body.pwd
+                        )
+                    );
                 } else {
                     logger.onSendingMsgError(
                         "No token that depends on this user_id"
@@ -231,16 +307,131 @@ router.post("/", (req, res, next) => {
 
             // request 결과를 반환하여 json형태로 response 합니다.
             request(options, (_err, _res, _body) => {
-                if (!_err && _res.statusCode == 200 && _body.psnum == 100) {
+                if (!_err && _res.statusCode == 200 && _body.code == 100) {
                     logger.onSendingMsgInfo("Res Alive Stop OK Msg");
-                    res.json({
-                        type: "alive_stop_ok",
-                    });
+                    // res.json({
+                    //     type: "alive_stop_ok",
+                    // });
+
+                    /* TODO : 명령어 삭제 */
+                    deleteDBCommand(_body.user_id);
+
+                    res.json(
+                        generateJSONResponse(
+                            "alive_stop_ok",
+                            null,
+                            _body.command,
+                            null
+                        )
+                    );
+                } else if (_body.code == 200) {
+                    res.json(generateJSONResponse("error", null, null, null));
                 }
             });
             break;
 
-        
+        case "mb_lock_with_pwd":
+            if (!checkProperties(["id", "pwd"], jsonObj)) {
+                logger.onSendingMsgError("Wrong Properties");
+                res.json({
+                    type: "error",
+                    msg: "Wrong properties",
+                });
+                return;
+            }
+
+            var options = {
+                url: "http://localhost:14000",
+                method: "POST",
+                json: {
+                    type: jsonObj["type"],
+                    id: jsonObj["id"],
+                    pwd: jsonObj["pwd"],
+                },
+            };
+
+            request(options, (err, response) => {
+                if (err) {
+                    res.status(404).end();
+                }
+                res.json(
+                    generateJSONResponse(
+                        "mb_locK_with_pwd_ok",
+                        jsonObj["id"],
+                        null,
+                        null
+                    )
+                );
+            });
+            break;
+
+        case "mb_lock_off":
+            if (!checkProperties(["id"], jsonObj)) {
+                logger.onSendingMsgError("Wrong Properties");
+                res.json({
+                    type: "error",
+                    msg: "Wrong properties",
+                });
+                return;
+            }
+
+            var options = {
+                url: "http://localhost:14000",
+                method: "POST",
+                json: {
+                    type: jsonObj["type"],
+                    id: jsonObj["id"],
+                },
+            };
+
+            request(options, (err, response) => {
+                if (err) {
+                    res.status(404).end();
+                }
+                res.json(
+                    generateJSONResponse(
+                        "mb_locK_off_ok",
+                        jsonObj["id"],
+                        null,
+                        null
+                    )
+                );
+            });
+            break;
+
+        case "mb_camera":
+            if (!checkProperties(["id"], jsonObj)) {
+                logger.onSendingMsgError("Wrong Properties");
+                res.json({
+                    type: "error",
+                    msg: "Wrong properties",
+                });
+                return;
+            }
+
+            var options = {
+                url: "http://localhost:14000",
+                method: "POST",
+                json: {
+                    type: jsonObj["type"],
+                    id: jsonObj["id"],
+                },
+            };
+
+            request(options, (err, response) => {
+                if (err) {
+                    res.status(404).end();
+                }
+                res.json(
+                    generateJSONResponse(
+                        "mb_camera_ok",
+                        jsonObj["id"],
+                        null,
+                        null
+                    )
+                );
+            });
+            break;
 
         default:
             logger.onSendingMsgError("Wrong Type");
