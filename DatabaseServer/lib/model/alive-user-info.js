@@ -23,6 +23,7 @@ var newAliveUserInfoSchema = new Schema(
         is_warning_pushed: Boolean,
         command: String,
         pwd: String,
+        img: String,
     },
     {
         // 이름 지정

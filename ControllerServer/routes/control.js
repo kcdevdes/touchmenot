@@ -11,7 +11,12 @@ var express = require("express");
 var moment = require("moment");
 var request = require("request");
 var logger = require("./logger");
+const { json } = require("express");
 var router = express.Router();
+var buffer = require("buffer");
+var path = require("path");
+var fs = require("fs");
+const { rejects } = require("assert");
 
 // Logger를 시작합니다.
 logger.onStart();
@@ -39,7 +44,7 @@ function isJSON(jsonObj) {
         // JSON으로 stringify 시도를 합니다.
         var jsonStr = JSON.stringify(jsonObj);
         JSON.parse(jsonStr);
-        logger.onSendingMsgInfo(jsonStr);
+        // logger.onSendingMsgInfo(jsonStr);
     } catch (e) {
         //console.log('Not JSON');
         logger.onSendingMsgError("Not JSON");
@@ -85,8 +90,39 @@ function generateJSONResponse(type, id, command, pwd) {
     return JSONObject;
 }
 
-function base64encode(plaintext) {
-    return Buffer.from(plaintext, "utf8").toString("base64");
+function encode_base64(filename) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(path.join(__dirname, "../images/", filename), function (
+            error,
+            data
+        ) {
+            if (error) {
+                reject(new Error(error));
+            } else {
+                var buf = Buffer.from(data);
+                var base64 = buf.toString("base64");
+                resolve(base64);
+            }
+        });
+    });
+}
+
+function decode_base64(base64str, filename) {
+    return new Promise((resolve, reject) => {
+        var buf = Buffer.from(base64str, "base64");
+
+        fs.writeFile(
+            path.join(__dirname, "../images/", filename),
+            buf,
+            async function (error) {
+                if (error) {
+                    reject(new Error(error));
+                } else {
+                    resolve(true);
+                }
+            }
+        );
+    });
 }
 
 function deleteDBCommand(id) {
@@ -140,7 +176,7 @@ router.get("/", (req, res) => {
     });
 });
 
-router.post("/", (req, res, next) => {
+router.post("/", async (req, res, next) => {
     /* 접속 정보 */
     const IP = getUserIP(req);
 
@@ -330,6 +366,40 @@ router.post("/", (req, res, next) => {
             });
             break;
 
+        case "mobile_new":
+            if (!checkProperties(["token"], jsonObj)) {
+                logger.onSendingMsgError("Wrong Properties");
+                res.json({
+                    type: "error",
+                    msg: "Wrong properties",
+                });
+                return;
+            }
+
+            var options = {
+                url: "http://localhost:14000",
+                method: "POST",
+                json: {
+                    type: jsonObj["type"],
+                    token: jsonObj["token"],
+                },
+            };
+
+            request(options, (err, response) => {
+                if (response.body.code === 100) {
+                    res.json({
+                        type: "user_id",
+                        id: response.body.user_id,
+                    });
+                } else {
+                    res.status(404).json(
+                        generateJSONResponse("error", null, null, null)
+                    );
+                }
+            });
+
+            break;
+
         case "mb_lock_with_pwd":
             if (!checkProperties(["id", "pwd"], jsonObj)) {
                 logger.onSendingMsgError("Wrong Properties");
@@ -431,6 +501,47 @@ router.post("/", (req, res, next) => {
                     )
                 );
             });
+            break;
+
+        case "mb_upload":
+            /**
+             * 1. 데이터베이스에 id를 검색해 Image존재 여부를 확인한다.
+             * 2. 확인시 이미지 삭제, 재업로드를 진행, 없으면 그대로 업로드를 한다.
+             * 3. 업로드 된 이미지의 이름은 데이터베이스로 id와 함꼐 한번 더 전송된다.
+             * 4. 최종적으로 id와 ok 사인을 response한다.
+             */
+            if (!checkProperties(["id", "img"], jsonObj)) {
+                logger.onSendingMsgError("Wrong Properties");
+                res.json({
+                    type: "error",
+                    msg: "Wrong properties",
+                });
+                return;
+            }
+
+            const bufferImgFile = jsonObj["img"];
+            const imgName = new Date();
+            decode_base64(bufferImgFile, imgName + ".png")
+                .then(() => {
+                    res.json(
+                        generateJSONResponse(
+                            "mb_upload_ok",
+                            jsonObj["id"],
+                            null,
+                            null
+                        )
+                    );
+                })
+                .catch(() => {
+                    res.json({
+                        type: "error",
+                        msg: "failed to upload the image",
+                    });
+                });
+
+            break;
+
+        case "mb_download":
             break;
 
         default:

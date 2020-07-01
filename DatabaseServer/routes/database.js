@@ -442,6 +442,34 @@ router.post("/", (req, res, next) => {
         // 추가된 내용 /////
         //////////////////
 
+        case "mobile_new":
+            // 유효 타입 검사
+            if (!check_properties(["token"], jsonObj)) {
+                res.json({
+                    code: 200,
+                    msg: "Wrong Properties",
+                });
+                return;
+            }
+
+            RegisteredUserInfo.findOne({ user_token: jsonObj["token"] })
+                .sort({ _id: -1 })
+                .exec(function (err, post) {
+                    if (!err) {
+                        res.json({
+                            code: 100,
+                            user_token: post.user_token,
+                            user_id: post.user_id,
+                        });
+                    } else {
+                        res.json({
+                            code: 200,
+                            msg: "Cannot find data",
+                        });
+                    }
+                });
+            break;
+
         case "mb_lock_with_pwd":
             // 유효 타입 검사
             if (!check_properties(["id", "pwd"], jsonObj)) {
