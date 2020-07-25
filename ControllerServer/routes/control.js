@@ -16,7 +16,6 @@ var router = express.Router();
 var buffer = require("buffer");
 var path = require("path");
 var fs = require("fs");
-const { rejects } = require("assert");
 
 // Logger를 시작합니다.
 logger.onStart();
@@ -44,7 +43,7 @@ function isJSON(jsonObj) {
         // JSON으로 stringify 시도를 합니다.
         var jsonStr = JSON.stringify(jsonObj);
         JSON.parse(jsonStr);
-        // logger.onSendingMsgInfo(jsonStr);
+        logger.onSendingMsgInfo(jsonStr);
     } catch (e) {
         //console.log('Not JSON');
         logger.onSendingMsgError("Not JSON");
@@ -140,7 +139,7 @@ function deleteDBCommand(id) {
 }
 
 /* function
-ip를 가지고 옵니다.
+ip를 가지고 놉니다.
 */
 function getUserIP(req) {
     var ipAddress =
@@ -400,7 +399,8 @@ router.post("/", async (req, res, next) => {
 
             break;
 
-        case "mb_lock_with_pwd":
+        // mb_lock_with_pwd => moblie_lock_on
+        case "mobile_lock_on":
             if (!checkProperties(["id", "pwd"], jsonObj)) {
                 logger.onSendingMsgError("Wrong Properties");
                 res.json({
@@ -421,21 +421,25 @@ router.post("/", async (req, res, next) => {
             };
 
             request(options, (err, response) => {
-                if (err) {
-                    res.status(404).end();
+                if (err || response.body.code === 200) {
+                    res.status(404).json({
+                        type: "error",
+                    });
+                } else {
+                    res.json(
+                        generateJSONResponse(
+                            "mobile_lock_on_ok",
+                            jsonObj["id"],
+                            null,
+                            null
+                        )
+                    );
                 }
-                res.json(
-                    generateJSONResponse(
-                        "mb_locK_with_pwd_ok",
-                        jsonObj["id"],
-                        null,
-                        null
-                    )
-                );
             });
             break;
 
-        case "mb_lock_off":
+        // mb_lock_off => mobile_lock_off
+        case "mobile_lock_off":
             if (!checkProperties(["id"], jsonObj)) {
                 logger.onSendingMsgError("Wrong Properties");
                 res.json({
@@ -455,21 +459,24 @@ router.post("/", async (req, res, next) => {
             };
 
             request(options, (err, response) => {
-                if (err) {
-                    res.status(404).end();
+                if (err || response.body.code === 200) {
+                    res.status(404).json({
+                        type: "err",
+                    });
+                } else {
+                    res.json(
+                        generateJSONResponse(
+                            "mobile_locK_off_ok",
+                            jsonObj["id"],
+                            null,
+                            null
+                        )
+                    );
                 }
-                res.json(
-                    generateJSONResponse(
-                        "mb_locK_off_ok",
-                        jsonObj["id"],
-                        null,
-                        null
-                    )
-                );
             });
             break;
 
-        case "mb_camera":
+        case "mobile_camera":
             if (!checkProperties(["id"], jsonObj)) {
                 logger.onSendingMsgError("Wrong Properties");
                 res.json({
@@ -489,17 +496,57 @@ router.post("/", async (req, res, next) => {
             };
 
             request(options, (err, response) => {
-                if (err) {
-                    res.status(404).end();
+                if (err || response.body.code === 200) {
+                    res.status(404).json({
+                        type: "err",
+                    });
+                } else {
+                    res.json(
+                        generateJSONResponse(
+                            "mobile_camera_ok",
+                            jsonObj["id"],
+                            null,
+                            null
+                        )
+                    );
                 }
-                res.json(
-                    generateJSONResponse(
-                        "mb_camera_ok",
-                        jsonObj["id"],
-                        null,
-                        null
-                    )
-                );
+            });
+            break;
+
+        case "mobile_download":
+            if (!checkProperties(["id"], jsonObj)) {
+                logger.onSendingMsgError("Wrong Properties");
+                res.json({
+                    type: "error",
+                    msg: "Wrong properties",
+                });
+                return;
+            }
+
+            var options = {
+                url: "http://localhost:14000",
+                method: "POST",
+                json: {
+                    type: jsonObj["type"],
+                    id: jsonObj["id"],
+                },
+            };
+
+            request(options, (err, response) => {
+                if (err || response.body.code === 200) {
+                    res.status(404).json({
+                        type: "err",
+                    });
+                } else {
+                    res.json(
+                        generateJSONResponse(
+                            "mobile_download_ok",
+                            jsonObj["id"],
+                            null,
+                            null
+                        )
+                    );
+                }
             });
             break;
 

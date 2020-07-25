@@ -44,11 +44,11 @@ db.once("open", () => {
 // mongodb 연결
 var url = `mongodb://localhost:27017/user_info`;
 mongoose.connect(url, {
-    auth: {
-        user: DB_ADMIN,
-        password: DB_PASSWORD,
-    },
-    authSource: "admin",
+    // auth: {
+    //     user: DB_ADMIN,
+    //     password: DB_PASSWORD,
+    // },
+    // authSource: "admin",
     useNewUrlParser: true,
     useUnifiedTopology: true,
 });
@@ -470,7 +470,7 @@ router.post("/", (req, res, next) => {
                 });
             break;
 
-        case "mb_lock_with_pwd":
+        case "mobile_lock_on":
             // 유효 타입 검사
             if (!check_properties(["id", "pwd"], jsonObj)) {
                 res.json({
@@ -484,15 +484,19 @@ router.post("/", (req, res, next) => {
             AliveUserInfo.findOneAndUpdate(
                 { user_id: jsonObj["id"] },
                 {
-                    command: "MobileLockOn",
+                    command: "NoteLockOn",
                     pwd: jsonObj["pwd"],
                 },
                 (err, data) => {
-                    if (err) {
+                    if (err || data == null) {
                         logger.onSendingMsgError(err);
+                        res.json({
+                            code: 200,
+                            err: err,
+                        });
                     } else {
                         res.json({
-                            psnum: 100,
+                            code: 100,
                             msg: "database-server",
                         });
                     }
@@ -500,11 +504,11 @@ router.post("/", (req, res, next) => {
             );
             break;
 
-        case "mb_lock_off":
+        case "mobile_lock_off":
             // 유효 타입 검사
             if (!check_properties(["id"], jsonObj)) {
                 res.json({
-                    psnum: 200,
+                    code: 200,
                     msg: "Wrong Properties",
                 });
                 return;
@@ -512,13 +516,13 @@ router.post("/", (req, res, next) => {
             // 동일
             AliveUserInfo.findOneAndUpdate(
                 { user_id: jsonObj["id"] },
-                { command: "MobileLockOff" },
+                { command: "NoteLockOff" },
                 (err, data) => {
                     if (err) {
                         logger.onSendingMsgError(err);
                     } else {
                         res.json({
-                            psnum: 100,
+                            code: 100,
                             msg: "database-server",
                         });
                     }
@@ -530,7 +534,7 @@ router.post("/", (req, res, next) => {
             // 유효 타입 검사
             if (!check_properties(["id"], jsonObj)) {
                 res.json({
-                    psnum: 200,
+                    code: 200,
                     msg: "Wrong Properties",
                 });
                 return;
@@ -542,9 +546,13 @@ router.post("/", (req, res, next) => {
                 (err, data) => {
                     if (err) {
                         logger.onSendingMsgError(err);
+                        res.json({
+                            code: 200,
+                            err: err,
+                        });
                     } else {
                         res.json({
-                            psnum: 100,
+                            code: 100,
                             msg: "database-server",
                         });
                     }
@@ -556,7 +564,7 @@ router.post("/", (req, res, next) => {
             // 유효 타입 검사
             if (!check_properties(["id"], jsonObj)) {
                 res.json({
-                    psnum: 200,
+                    code: 200,
                     msg: "Wrong Properties",
                 });
                 return;
@@ -570,13 +578,14 @@ router.post("/", (req, res, next) => {
                         logger.onSendingMsgError(err);
                     } else {
                         res.json({
-                            psnum: 100,
+                            code: 100,
                             msg: "database-server",
                         });
                     }
                 }
             );
             break;
+
         ////////////////Query Server Processings////////////////
 
         // Query서버에서의 lostUser를 찾고 그에 대한 토큰값을 넘겨줍니다.
