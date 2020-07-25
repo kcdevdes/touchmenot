@@ -78,10 +78,11 @@ function generateJSONResponse(type, id, command, pwd) {
         JSONObject.id = id;
     }
     if (!(command === null || command === "")) {
-        JSONObject.command = command;
-    }
-    if (!(pwd === null || pwd === "")) {
-        JSONObject.pwd = pwd;
+        if (!(pwd === null || pwd === "")) {
+            JSONObject.cmd = command + ":" + pwd;
+        } else {
+            JSONObject.cmd = command;
+        }
     }
 
     responseJSON.push(JSONObject);
@@ -210,7 +211,10 @@ router.post("/", async (req, res, next) => {
 
     /** Database Server로 전송하기 위한 과정 **/
     /* 타입 분류 */
-    switch (jsonObj["type"]) {
+    logger.onSendingMsgInfo(
+        jsonObj["type"].split(":")[0] + " AND " + jsonObj["type"].split(":")[1]
+    );
+    switch (jsonObj["type"].split(":")[0]) {
         // 새로운 유저 등록
         case "new":
             // 유효성 확인
@@ -401,7 +405,7 @@ router.post("/", async (req, res, next) => {
 
         // mb_lock_with_pwd => moblie_lock_on
         case "mobile_lock_on":
-            if (!checkProperties(["id", "pwd"], jsonObj)) {
+            if (!checkProperties(["id"], jsonObj)) {
                 logger.onSendingMsgError("Wrong Properties");
                 res.json({
                     type: "error",
@@ -414,9 +418,9 @@ router.post("/", async (req, res, next) => {
                 url: "http://localhost:14000",
                 method: "POST",
                 json: {
-                    type: jsonObj["type"],
+                    type: "mobile_lock_on",
                     id: jsonObj["id"],
-                    pwd: jsonObj["pwd"],
+                    pwd: jsonObj["type"].split(":")[1],
                 },
             };
 
@@ -453,7 +457,7 @@ router.post("/", async (req, res, next) => {
                 url: "http://localhost:14000",
                 method: "POST",
                 json: {
-                    type: jsonObj["type"],
+                    type: "mobile_lock_off",
                     id: jsonObj["id"],
                 },
             };

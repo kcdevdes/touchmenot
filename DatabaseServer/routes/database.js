@@ -22,8 +22,8 @@ var dotenv = require("dotenv");
 var path = require("path");
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
-const DB_ADMIN = process.env.DB_ADMIN;
-const DB_PASSWORD = process.env.DB_PASSWORD;
+const DB_ADMIN = "kevinchoi";
+const DB_PASSWORD = "nandemonaiya";
 
 const SERVER_API_KEY =
     "AAAAJ2I8RAY:APA91bEyMgJMcegPqB7pWQyeQvY_hMvD5TpJGAu6QIypa6S3Lzmd2NeFFucG_fNuifbOe_5dg3ao921ljJFFq1-NVmr3dGC8TwylfZVNFgqCA48w2-GrBaIg76dYStc9PaRnfcHZZe_1";
@@ -484,7 +484,7 @@ router.post("/", (req, res, next) => {
             AliveUserInfo.findOneAndUpdate(
                 { user_id: jsonObj["id"] },
                 {
-                    command: "NoteLockOn",
+                    command: "note_lock_on",
                     pwd: jsonObj["pwd"],
                 },
                 (err, data) => {
@@ -516,7 +516,7 @@ router.post("/", (req, res, next) => {
             // 동일
             AliveUserInfo.findOneAndUpdate(
                 { user_id: jsonObj["id"] },
-                { command: "NoteLockOff" },
+                { command: "note_lock_off" },
                 (err, data) => {
                     if (err) {
                         logger.onSendingMsgError(err);
